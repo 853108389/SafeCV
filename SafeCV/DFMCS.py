@@ -20,10 +20,10 @@ def UCB1(keypoint_distribution, plays_per_node, totalplays):
     retval = []
     for i in range(len(keypoint_distribution)):
         value = keypoint_distribution[i]
-        value += math.sqrt(log(plays_per_node[i])/totalplays)
+        value += math.sqrt(np.log(plays_per_node[i]) / totalplays)
         retval.append(value)
     retval = np.asarray(retval)
-    return retval/sum(retval)
+    return retval / sum(retval)
 
 
 class DFMCS_Parameters:
@@ -97,7 +97,7 @@ class DFMCS_Parameters:
 
 def SIFT_Filtered(image, parameters, threshold=0.00):
     # We need to expand the image to get good keypoints
-    if(parameters.small_image):
+    if (parameters.small_image):
         xs = parameters.X_SHAPE * parameters.inflation_constant
         ys = parameters.Y_SHAPE * parameters.inflation_constant
         image = cv2.resize(image, (xs, ys))
@@ -112,11 +112,12 @@ def SIFT_Filtered(image, parameters, threshold=0.00):
     ret = []
     index_tracker = 0
     for x in kp:
-        if(x.response >= threshold):
+        if (x.response >= threshold):
             ret.append((x, des[index_tracker], x.response))
         index_tracker = index_tracker + 1
     retval = sorted(ret, key=lambda tup: tup[2])
     return zip(*retval)
+
 
 """
 Input: image, true_class, manip_method, kp_selection (optional)
@@ -126,20 +127,20 @@ Output: adv_image, softmax_array, L0 Severity, kp_selection
 
 def DFMCS(params, cutoff=-1):
     image = copy.deepcopy(params.ORIGINAL_IMAGE)
-    if(params.kp == []):
+    if (params.kp == []):
         temp_params = SIFT_Filtered(params.ORIGINAL_IMAGE, params)
         params.kp = temp_params[0]
         params.des = temp_params[1]
         params.r = temp_params[2]
         params.r = np.asarray(params.r)
-        params.r = params.r/sum(params.r)
-    if(cutoff != -1):
+        params.r = params.r / sum(params.r)
+    if (cutoff != -1):
         enforce_cutoff = True
     else:
         enforce_cutoff = False
 
     def sample_from_kp(k):
-        mu_x, mu_y, sigma = int(round(k.pt[0])), int(round(k.pt[1])),  k.size
+        mu_x, mu_y, sigma = int(round(k.pt[0])), int(round(k.pt[1])), k.size
         # Remember, it may be wise to expand simga
         #  greater varience = less honed attack
         sigma += params.SIGMA_CONSTANT
@@ -147,31 +148,31 @@ def DFMCS(params, cutoff=-1):
         d_y = NormalDistribution(mu_y, sigma)
         x = d_x.sample()
         y = d_y.sample()
-        if(params.small_image):
+        if (params.small_image):
             x /= params.inflation_constant
             y /= params.inflation_constant
         x = int(x)
         y = int(y)
-        if(x >= params.X_SHAPE):
-            x = params.X_SHAPE-1
-        elif(x < 0):
+        if (x >= params.X_SHAPE):
+            x = params.X_SHAPE - 1
+        elif (x < 0):
             x = 0
-        if(y >= params.Y_SHAPE):
-            y = params.Y_SHAPE-1
-        elif(y < 0):
+        if (y >= params.Y_SHAPE):
+            y = params.Y_SHAPE - 1
+        elif (y < 0):
             y = 0
         return int(x), int(y)
 
     def backprop(keypoint_distribution, expored_index, reward):
-        keypoint_distribution[expored_index] += (float(reward)/25)
-        if(keypoint_distribution[expored_index] < 0):
+        keypoint_distribution[expored_index] += (float(reward) / 25)
+        if (keypoint_distribution[expored_index] < 0):
             keypoint_distribution[expored_index] = 0
         # keypoint_distribution += (max(keypoint_distribution)/4)
         keypoint_distribution /= sum(keypoint_distribution)
         return keypoint_distribution
 
     def calculate_reward(orig, new, true_class, target_class=None):
-        if(target_class is None):
+        if (target_class is None):
             return orig[0][true_class] - new[0][true_class]
         else:
             return new[0][target_class] - orig[0][target_class]
@@ -180,13 +181,13 @@ def DFMCS(params, cutoff=-1):
         sum_reward = 0
         for i in target_class:
             sum_reward += orig[0][i] - new[0][i]
-        return sum_reward/len(target_class)
+        return sum_reward / len(target_class)
 
     def run_mcts_exploitation_step(model, image, true_class, keypoints,
                                    keypoint_distribution, backpropogation,
                                    TOTAL_PLAYS, target_class=None):
         for i in range(len(keypoint_distribution)):
-            if(keypoint_distribution[i] < 0):
+            if (keypoint_distribution[i] < 0):
                 keypoint_distribution[i] = 0
         keypoint_distribution = np.asarray(keypoint_distribution)
         keypoint_distribution /= sum(keypoint_distribution)
@@ -195,17 +196,17 @@ def DFMCS(params, cutoff=-1):
         kis = np.random.choice(kp_len_array, p=keypoint_distribution)
         # (4b) - Expore that keypoint up to some bound
         expiter = 0
-        while(expiter != params.VISIT_CONSTANT):
+        while (expiter != params.VISIT_CONSTANT):
             x, y = sample_from_kp(keypoints[kis])
             try:
-                if(((x, y) in params.MANIPULATIONS) or
-                   list(image[y][x]) ==
-                   list(params.manip_method(image[y][x], params.EPSILON))):
+                if (((x, y) in params.MANIPULATIONS) or
+                        list(image[y][x]) ==
+                        list(params.manip_method(image[y][x], params.EPSILON))):
                     continue
             except:
-                if(((x, y) in params.MANIPULATIONS) or
-                   (image[y][x]) ==
-                   (params.manip_method(image[y][x], params.EPSILON))):
+                if (((x, y) in params.MANIPULATIONS) or
+                        (image[y][x]) ==
+                        (params.manip_method(image[y][x], params.EPSILON))):
                     continue
 
             image[y][x] = params.manip_method(image[y][x], params.EPSILON)
@@ -214,9 +215,9 @@ def DFMCS(params, cutoff=-1):
             expiter += 1
 
         pred, prob = params.predict(image)
-        if((pred != int(true_class) and target_class is None) or
-           (pred != target_class and target_class is not None)):
-            if(params.verbose):
+        if ((pred != int(true_class) and target_class is None) or
+                (pred != target_class and target_class is not None)):
+            if (params.verbose):
                 print("\n")
                 print("Adversarial Example Found")
                 f = """Current Probability: %s
@@ -232,7 +233,7 @@ def DFMCS(params, cutoff=-1):
         reward = calculate_reward(params.SOFT_MAX_ARRAY,
                                   prob, true_class, target_class)
 
-        if(reward < 0):
+        if (reward < 0):
             replace = params.MANIPULATIONS[-params.VISIT_CONSTANT:]
             for x, y in replace:
                 image[y][x] = params.ORIGINAL_IMAGE[y][x]
@@ -242,7 +243,7 @@ def DFMCS(params, cutoff=-1):
                                                 kis, reward)
         params.PLAYS_ARRAY[kis] += 1
         params.TOTAL_PLAYS += 1
-        if(params.verbose):
+        if (params.verbose):
             f = """Current Probability: %s
                    Current Class: %s
                    Manipulations: %s
@@ -258,28 +259,28 @@ def DFMCS(params, cutoff=-1):
         # Choose a keypoint from the keypoint distribution (exploitation)
         kis = np.random.choice(range(len(keypoint_distribution)),
                                p=UCB1(keypoint_distribution,
-                               PLAYS_ARRAY, TOTAL_PLAYS))
+                                      PLAYS_ARRAY, TOTAL_PLAYS))
         # (4b) - Expore that keypoint up to some bound
         expiter = 0
-        while(expiter != params.VISIT_CONSTANT):
+        while (expiter != params.VISIT_CONSTANT):
             x, y = sample_from_kp(keypoints[kis])
             try:
-                if(((x, y) in params.MANIPULATIONS) or
-                   list(image[y][x]) ==
-                   list(params.manip_method(image[y][x], params.EPSILON))):
+                if (((x, y) in params.MANIPULATIONS) or
+                        list(image[y][x]) ==
+                        list(params.manip_method(image[y][x], params.EPSILON))):
                     continue
             except:
-                if(((x, y) in params.MANIPULATIONS) or
-                   (image[y][x]) ==
-                   (params.manip_method(image[y][x], params.EPSILON))):
+                if (((x, y) in params.MANIPULATIONS) or
+                        (image[y][x]) ==
+                        (params.manip_method(image[y][x], params.EPSILON))):
                     continue
             image[y][x] = params.manip_method(image[y][x], params.EPSILON)
             params.MANIPULATIONS.append((x, y))
             expiter += 1
         pred, prob = params.predict(image)
-        if((pred != int(true_class) and target_class is None) or
-           (pred != target_class and target_class is not None)):
-            if(params.verbose):
+        if ((pred != int(true_class) and target_class is None) or
+                (pred != target_class and target_class is not None)):
+            if (params.verbose):
                 print("\n")
                 print("Adversarial Example Found")
                 f = """Current Probability: %s
@@ -294,7 +295,7 @@ def DFMCS(params, cutoff=-1):
         reward = calculate_reward(params.SOFT_MAX_ARRAY,
                                   prob, true_class, target_class)
         MISCLASSIFIED = False
-        if(reward < 0):
+        if (reward < 0):
             replace = params.MANIPULATIONS[-params.VISIT_CONSTANT:]
             # faster to impliment as a check-point replacement probably
             for x, y in replace:
@@ -304,7 +305,7 @@ def DFMCS(params, cutoff=-1):
                                                 kis, reward)
         PLAYS_ARRAY[kis] += 1
         TOTAL_PLAYS += 1
-        if(params.verbose):
+        if (params.verbose):
             f = """Current Probability: %s
                    Current Class: %s
                    Manipulations: %s
@@ -312,21 +313,22 @@ def DFMCS(params, cutoff=-1):
             sys.stdout.write("\r" + str(f))
             sys.stdout.flush()
         return keypoint_distribution, image, TOTAL_PLAYS, MISCLASSIFIED
+
     params.MISCLASSIFIED, mis = False, False
     pred, prob = params.predict(image)
     NEW_PROBABILITY = prob[0][pred]
     params.SOFT_MAX_ARRAY = prob
-    if(pred != params.TRUE_CLASS):
+    if (pred != params.TRUE_CLASS):
         MISCLASSIFIED, mis = True, True
         return params.ORIGINAL_IMAGE, params.SOFT_MAX_ARRAY, 0, None
     iters = 0
     cutoff_enforced = False
-    if(params.verbose):
+    if (params.verbose):
         print("Starting DFMCS. Cuttoff: %s" % (cutoff))
-    if(cutoff == -1):
+    if (cutoff == -1):
         cutoff_enforced = False
-        while(not params.MISCLASSIFIED):
-            retvals_from run = run_mcts_exploitation_step(params.model,
+        while (not params.MISCLASSIFIED):
+            retvals_from_run = run_mcts_exploitation_step(params.model,
                                                           image,
                                                           params.TRUE_CLASS,
                                                           params.kp,
@@ -337,9 +339,9 @@ def DFMCS(params, cutoff=-1):
             image = retvals_from_run[1]
             params.TOTAL_PLAYS = retvals_from_run[2]
             params.MISCLASSIFIED = retvals_from_run[3]
-            if(params.MISCLASSIFIED):
+            if (params.MISCLASSIFIED):
                 break
-            retvals_from run = run_mcts_exploitation_step(params.model,
+            retvals_from_run = run_mcts_exploitation_step(params.model,
                                                           image,
                                                           params.TRUE_CLASS,
                                                           params.kp,
@@ -356,8 +358,8 @@ def DFMCS(params, cutoff=-1):
             # break
     else:
         cutoff_enforced = True
-        for i in range(int(cutoff/int(1.5*params.VISIT_CONSTANT))):
-            retvals_from run = run_mcts_exploitation_step(params.model,
+        for i in range(int(cutoff / int(1.5 * params.VISIT_CONSTANT))):
+            retvals_from_run = run_mcts_exploitation_step(params.model,
                                                           image,
                                                           params.TRUE_CLASS,
                                                           params.kp,
@@ -368,11 +370,11 @@ def DFMCS(params, cutoff=-1):
             image = retvals_from_run[1]
             params.TOTAL_PLAYS = retvals_from_run[2]
             params.MISCLASSIFIED = retvals_from_run[3]
-            if(params.MISCLASSIFIED):
+            if (params.MISCLASSIFIED):
                 cutoff_enforced = False
                 break
-            asdasf
-            retvals_from run = run_mcts_exploitation_step(params.model,
+
+            retvals_from_run = run_mcts_exploitation_step(params.model,
                                                           image,
                                                           params.TRUE_CLASS,
                                                           params.kp,
@@ -383,7 +385,7 @@ def DFMCS(params, cutoff=-1):
             image = retvals_from_run[1]
             params.TOTAL_PLAYS = retvals_from_run[2]
             params.MISCLASSIFIED = retvals_from_run[3]
-            if(params.MISCLASSIFIED):
+            if (params.MISCLASSIFIED):
                 cutoff_enforced = False
                 break
 
@@ -394,7 +396,7 @@ def DFMCS(params, cutoff=-1):
         pixels_at_a_time = cluster
         progress = 0
         for x, y in manipulations:
-            if(pixels_at_a_time != 0):
+            if (pixels_at_a_time != 0):
                 adversarial_image[y][x] = original_image[y][x]
                 pixels_at_a_time -= 1
                 continue
@@ -402,26 +404,27 @@ def DFMCS(params, cutoff=-1):
                 adversarial_image[y][x] = original_image[y][x]
                 pixels_at_a_time = cluster
             pred, prob = params.predict(image)
-            if(pred != int(true_class)):
+            if (pred != int(true_class)):
                 best_bad_example = copy.deepcopy(adversarial_image)
-                l_zero -= (cluster+1)
+                l_zero -= (cluster + 1)
             else:
                 adversarial_image = copy.deepcopy(best_bad_example)
             progress += 1
-            if(params.verbose):
+            if (params.verbose):
                 f = """Backtracking Step L_0: %s
                        Probability: %s Class: %s,
                        progress: %s/%s
                     """ % (l_zero, prob[0][pred],
-                           pred, progress*cluster, len(manipulations))
+                           pred, progress * cluster, len(manipulations))
                 sys.stdout.write("\r" + str(f))
                 sys.stdout.flush()
         return best_bad_example, manipulations, l_zero
+
     # for i in range(10):
-    if(params.verbose and not cutoff_enforced):
+    if (params.verbose and not cutoff_enforced):
         print("Backtracking")
-    if(cutoff_enforced is False):
-        image, params.MANIPULATIONS, l_zero
+    if (cutoff_enforced is False):
+        # image, params.MANIPULATIONS, l_zero
         returned_array = backtracking(image,
                                       params.ORIGINAL_IMAGE,
                                       params.MANIPULATIONS,
@@ -430,11 +433,11 @@ def DFMCS(params, cutoff=-1):
         image = returned_array[0]
         params.MANIPULATIONS = returned_array[1]
         l_zero = returned_array[2]
-    if(params.verbose and not cutoff_enforced):
+    if (params.verbose and not cutoff_enforced):
         print("\n Done backtracking")
     pred, prob = params.predict(image)
     # Output: adv_image, softmax_array, L0 Severity, kp_selection
-    if(cutoff_enforced):
-        return image, prob,  -1, params.r
+    if (cutoff_enforced):
+        return image, prob, -1, params.r
     else:
-        return image, prob,  l_zero, params.r
+        return image, prob, l_zero, params.r

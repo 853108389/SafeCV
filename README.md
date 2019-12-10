@@ -1,6 +1,9 @@
 There are many errors in the original author's code, and the original code cannot be run. After modification, it can run correctly.
+
 warning : please use right version of open-cv.
+
 pip uninstall opencv-python
+
 pip install opencv-contrib-python==3.4.2.17 
 
 # SafeCV
